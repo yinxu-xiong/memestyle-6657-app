@@ -6,7 +6,7 @@
 - **阶段 0 备料**：✅ 完成
 - **阶段 1 抓数据**：✅ 完成（memes_cache.json 已落地 23701 条）
 - **阶段 2 生成器**：✅ **关闭**（round1~8 盲评迭代 + round8 盲评后终版改进已落地；用户决定不再评测）
-- **阶段 3 Web 应用**：🟢 **已推送 GitHub 私有仓库 `yinxu-xiong/memestyle-6657`，本地 300/日限额版跑通；剩 Streamlit Cloud 部署一步（用户账号操作，见 DEPLOY.md）**
+- **阶段 3 Web 应用**：🟢 **公开仓库 `yinxu-xiong/memestyle-6657-app` 已建并推送（无历史、已脱敏）；旧私有仓库保留不动；剩用户在 Streamlit Cloud 删旧应用+从公开仓库重部署（约 10 分钟，见 DEPLOY.md）**
 
 ## 已完成
 1. **接口调查**：未启动浏览器，改为直接分析站点前端 JS 包（`sb6657.cn/assets/js/index.DjejzvcD.js` 等），
@@ -43,12 +43,41 @@
 | `eval_output.md` / `eval_progress.json` | round8 评测结果 38 条（变化条目带 ⚡）/ 进度（completed 38） |
 | `eval_output_round1~7.md` | 历轮评测存档（含用户盲评批注，勿删） |
 | `app.py` | 阶段 3 Web 界面（Streamlit 单文件） |
-| `feedback.jsonl` | Web 端好串/尬了反馈数据（追加写入） |
+| `README.md` | 公开仓库说明（含数据来源声明，红线要求永不删除） |
+| `DEPLOY.md` | Streamlit Cloud 部署指南（公开版零登录流程） |
+| `feedback.jsonl` | Web 端好串/尬了反馈数据（追加写入；**不推公开仓库**） |
 
 ## 下一步（可选，未做）
-- **用户按 DEPLOY.md 完成 Streamlit Cloud 部署**（唯一剩余动作；需用户 GitHub 账号在 share.streamlit.io 操作，AI 无法代做）
+- **用户在 Streamlit Cloud 完成迁移部署（唯一剩余动作）**：删旧应用 → 从公开仓库 `yinxu-xiong/memestyle-6657-app` 新建（main + app.py）→ Secrets 配 `DEEPSEEK_API_KEY` → Deploy → 确认 Sharing 为 "Anyone with the link"。逐步按钮级操作见 DEPLOY.md。AI 浏览器未登录 Streamlit Cloud，已按约定停止代办
+- **最终验收（用户手机）**：关 WiFi 用流量打开链接 → 不登录直接玩 → 三选一生成成功
 - 积累 feedback.jsonl 后做反馈分析（好/尬占比、按语境统计）—— 未要求，未做
 - 需要更新数据时：删除 `progress.json` 后重跑 `python fetch_memes.py`（或改造成增量：按 id 大于本地最大值续抓）
+
+---
+
+## 阶段 3 · 公开部署改造（2026-09-12，🟢 仓库就绪，待用户部署）
+
+**背景**：私有仓库部署的应用在 Streamlit Cloud 上观众必须登录才能访问，无法推广；公开仓库部署的应用任何人有链接即可玩（零登录）。用户决定：新建干净公开仓库重部署，旧私有仓库保留不动。
+
+**1. 公开仓库 `yinxu-xiong/memestyle-6657-app`（已建已推）**：
+- API 创建，`private: false` 已验证；**无 git 历史**（临时目录全新 init 单根提交，非从私有仓库 fork/复制历史）
+- 推送 10 文件：app.py / memestyle.py / eval.py / tags_map.json / requirements.txt / memes_cache.json（5.4MB）/ PROJECT_STATE.md / DEPLOY.md / README.md / .gitignore
+- 远端 contents 公开 API 验证：10 文件齐全、private=False、单 commit
+
+**2. README.md（新）**：玩法说明 + **数据来源声明（用户指定原文）**："烂梗数据来自 sb6657.cn（水友共同创作、站长整理维护），本项目仅作检索引用，不主张对数据本身的任何权利。"——红线要求永不删除
+
+**3. 脱敏自查（公开版）**：
+- `sk-` 密钥 / `.env` / feedback.jsonl 文件本体：**0 命中**（grep 证据；feedback.jsonl 含用户个人输入，不推）
+- PROJECT_STATE.md 第 25 行"实测接口不需要鉴权头"细节 → 改为"未使用任何站方鉴权头（细节见本地 api_notes.md，不随公开库分发）"——避免引导第三方绕过站方防护；api_notes.md / fetch_memes.py 本就不在推送列表
+- memes_cache.json envelope 的 `source_api` 溯源字段保留（README 已声明来源，URL 本身在前端公开 JS 中可见）
+- 代码层：DEEPSEEK_API_KEY 只走环境变量 / st.secrets（app.py 兜底读取链），全文件无盘符绝对路径
+
+**4. app.py / 300 限额 / secrets 架构：零改动**（上轮已就绪：`DAILY_LIMIT=300` 按日期计数 quota.json、成功生成才计数、secrets→环境变量兜底链、只读盘 OSError 兜底）——重部署自动继承
+
+**5. Streamlit Cloud 代办尝试（失败，按约定停止）**：自动化浏览器打开 share.streamlit.io → 显示 "Continue to sign-in" 未登录 → 停止，未做任何登录/账号操作；临时 key 文件（dskey.txt）与临时 staging 目录均已删除
+→ 迁移部署交回用户操作，按钮级步骤在 DEPLOY.md（删旧应用 Danger zone → New app 选公开仓库 → Advanced settings 配 Secrets → Deploy → 确认 Sharing）
+
+**6. 旧私有仓库 `yinxu-xiong/memestyle-6657`：保留不动**（红线）；本地 d:\6657chuanzi 工作目录为唯一源，公开仓库更新流程 = 改本地 → 复制改动文件到临时 staging → push（云端自动重部署）
 
 ---
 
