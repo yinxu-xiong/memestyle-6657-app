@@ -1,0 +1,16 @@
+# 密钥绝不入库
+.env
+*.env
+secrets.toml
+
+# 本地运行产物（不入库）
+feedback.jsonl
+quota.json
+fetch.log
+progress.json
+__pycache__/
+*.pyc
+
+# 评测历史（本地盲评存档，无需部署）
+eval_output*.md
+eval_progress.json

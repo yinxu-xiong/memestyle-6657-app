@@ -1,0 +1,72 @@
+{
+  "categories": ["神操作", "下饭", "暴怒", "赛事", "整活", "谐音", "泛用"],
+  "rules": {
+    "empty_tags": "tags 为空的梗全部并入泛用池（2026-09-10 缓存实测 0 条；此规则为数据刷新后的兜底）",
+    "pool_fallback": "语境无对应站方标签或池<10 条时回退泛用池；泛用池实测 1737 条 ≥300 门槛，维持回退泛用规则、未改为全库回退（2026-09-11 检查 b 结论）",
+    "pool_sizes": {"下饭": 11459, "暴怒": 1895, "赛事": 5816, "整活": 12238, "泛用": 1737, "神操作": 0, "谐音": 0}
+  },
+  "mapping": {
+    "神操作": {
+      "site_tags": [],
+      "fallback": "泛用",
+      "note": "无对应→回退泛用：站方30个标签全是嘲讽/整活向，无褒扬夸赞类标签"
+    },
+    "下饭": {
+      "site_tags": ["00", "01"],
+      "note": "喷玩机器=嘲讽主播拉胯；喷选手=嘲讽选手失误，下饭场景主力池"
+    },
+    "暴怒": {
+      "site_tags": ["09"],
+      "note": "直播间互喷=弹幕对线/攻击性玩梗（含'小萌妹'反串文学）"
+    },
+    "赛事": {
+      "site_tags": ["07", "08", "10", "12", "13", "15", "16", "20", "21", "22", "23", "24", "25", "26", "29"],
+      "note": "选手（NiKo/ropz/Donk/Zywoo/m0NESY/device/Twistzz/S1mple/chopper/frozen/京介=kyousuke）、战队（Falcons/Team Spirit）、赛事媒体（HLTV/赛事梗）"
+    },
+    "整活": {
+      "site_tags": ["02", "05", "06", "14", "18", "19", "27", "30"],
+      "note": "加一=复读跟风；群魔乱舞=无厘头刷屏；木柜子/丰川祥子/千早爱音/三角初华=MyGO乐队番魔改文学；🗿🗿🗿=moai刷屏；测谎仪=测谎仪环节整活"
+    },
+    "谐音": {
+      "site_tags": [],
+      "fallback": "泛用",
+      "note": "无对应→回退泛用：站方无谐音专类标签（'木柜子'标签名虽是Ave Mujica谐音，但梗内容是乐队番整活）"
+    },
+    "泛用": {
+      "site_tags": ["03", "11", "17", "28"],
+      "note": "QUQU=虎牙主播圈梗；伟伟=直播间人物梗；DOTA=游戏圈黑话（非CS赛事）；足小子=足球/杂烩梗"
+    }
+  },
+  "tag_index": {
+    "00": {"label": "喷玩机器", "category": "下饭", "note": "嘲讽主播本人（7243条）"},
+    "01": {"label": "喷选手", "category": "下饭", "note": "嘲讽职业选手失误/拉胯（4917条）"},
+    "02": {"label": "加一", "category": "整活", "note": "+1复读刷屏文学（3610条）"},
+    "03": {"label": "QUQU", "category": "泛用", "note": "虎牙主播QUQU相关梗（308条）"},
+    "05": {"label": "木柜子", "category": "整活", "note": "Ave Mujica谐音名，内容为乐队番魔改整活（3735条）"},
+    "06": {"label": "群魔乱舞", "category": "整活", "note": "无厘头混乱刷屏（7146条）"},
+    "07": {"label": "NiKo", "category": "赛事", "note": "选手NiKo（1931条）"},
+    "08": {"label": "ropz", "category": "赛事", "note": "选手ropz（199条）"},
+    "09": {"label": "直播间互喷", "category": "暴怒", "note": "弹幕互喷/对线攻击性玩梗（1895条）"},
+    "10": {"label": "Donk", "category": "赛事", "note": "选手donk（539条）"},
+    "11": {"label": "伟伟", "category": "泛用", "note": "直播间人物伟伟相关梗（155条）"},
+    "12": {"label": "Zywoo", "category": "赛事", "note": "选手Zywoo（554条）"},
+    "13": {"label": "m0NESY", "category": "赛事", "note": "选手m0NESY（769条）"},
+    "14": {"label": "丰川祥子", "category": "整活", "note": "MyGO/Ave Mujica角色梗（883条）"},
+    "15": {"label": "device", "category": "赛事", "note": "选手device（1100条）"},
+    "16": {"label": "Twistzz", "category": "赛事", "note": "选手Twistzz（666条）"},
+    "17": {"label": "DOTA", "category": "泛用", "note": "DOTA2游戏圈梗，非CS赛事语境（1182条）"},
+    "18": {"label": "千早爱音", "category": "整活", "note": "MyGO角色梗（305条）"},
+    "19": {"label": "三角初华", "category": "整活", "note": "Ave Mujica角色梗（177条）"},
+    "20": {"label": "Falcons", "category": "赛事", "note": "战队Falcons（1087条）"},
+    "21": {"label": "S1mple", "category": "赛事", "note": "选手s1mple（152条）"},
+    "22": {"label": "赛事梗", "category": "赛事", "note": "赛事话题通用梗（1009条）"},
+    "23": {"label": "京介", "category": "赛事", "note": "选手kyousuke（'没签证的京介'）（118条）"},
+    "24": {"label": "HLTV", "category": "赛事", "note": "【HLTV】假新闻文学（274条）"},
+    "25": {"label": "Team Spirit", "category": "赛事", "note": "战队Team Spirit（230条）"},
+    "26": {"label": "chopper", "category": "赛事", "note": "选手chopper（28条）"},
+    "27": {"label": "🗿🗿🗿", "category": "整活", "note": "moai无厘头刷屏（182条）"},
+    "28": {"label": "足小子", "category": "泛用", "note": "足球/C罗嘲讽等杂烩梗（98条）"},
+    "29": {"label": "frozen", "category": "赛事", "note": "选手frozen（137条）"},
+    "30": {"label": "测谎仪", "category": "整活", "note": "测谎仪环节整活（42条）"}
+  }
+}
