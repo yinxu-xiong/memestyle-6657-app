@@ -14,3 +14,13 @@ __pycache__/
 # 评测历史（本地盲评存档，无需部署）
 eval_output*.md
 eval_progress.json
+
+# V2 改进工作产物（本地留档，不入库）
+backups/
+_v2work/
+.workbuddy/
+v2_ab*.md
+v2_judge*.md
+diagnose_report*.md
+diag_*.json
+*.tmp

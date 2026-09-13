@@ -16,7 +16,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from memestyle import runmeme_candidates
+from memestyle import runmeme_candidates, prompt_version
 
 BASE_DIR = Path(__file__).resolve().parent
 FEEDBACK_FILE = BASE_DIR / "feedback.jsonl"
@@ -29,6 +29,14 @@ if "DEEPSEEK_API_KEY" not in os.environ:
         os.environ["DEEPSEEK_API_KEY"] = st.secrets["DEEPSEEK_API_KEY"]
     except (KeyError, FileNotFoundError):
         pass  # 两个都没有时由 memestyle.get_client() 报明确错误
+
+# 生成层版本开关透传（便于在云端做 V1/V2 对比）：
+# 在 Streamlit Secrets 里加一行 MEMESTYLE_PROMPT = "v1" 即切回旧版，删掉即用新版
+if "MEMESTYLE_PROMPT" not in os.environ:
+    try:
+        os.environ["MEMESTYLE_PROMPT"] = str(st.secrets["MEMESTYLE_PROMPT"]).strip()
+    except (KeyError, FileNotFoundError):
+        pass
 
 
 def check_quota():
@@ -59,7 +67,7 @@ def bump_quota():
 
 st.set_page_config(page_title="6657 串子生成器", page_icon="🐽", layout="centered")
 st.title("🐽 6657 串子生成器")
-st.caption("梗库 23701 条 · 一次出 3 条候选，点选最好的一条")
+st.caption(f"梗库 23701 条 · 一次出 3 条候选，点选最好的一条 · 生成层 {prompt_version().upper()}")
 
 if not check_quota():
     st.error("今日额度用完，明天再来 🐷")

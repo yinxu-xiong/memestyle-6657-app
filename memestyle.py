@@ -28,6 +28,7 @@ from openai import OpenAI
 BASE_DIR = Path(__file__).resolve().parent
 CACHE_FILE = BASE_DIR / "memes_cache.json"
 TAGS_MAP_FILE = BASE_DIR / "tags_map.json"
+CARDS_FILE = BASE_DIR / "format_cards.json"
 
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 MODEL = "deepseek-chat"
@@ -290,6 +291,76 @@ def related_memes(text, limit=RELATED_N):
     return relevance_rank(memes, text)[:limit]
 
 
+# ---------------------------------------------------------------- 格式卡（V2：把"原句"升级为"骨架"）
+_cards = None
+
+
+def load_cards():
+    """加载手写格式卡库。文件缺失时返回空列表（V2 自动降级为仅短梗+风格参考）。"""
+    global _cards
+    if _cards is None:
+        try:
+            _cards = json.loads(CARDS_FILE.read_text(encoding="utf-8"))["cards"]
+        except (FileNotFoundError, json.JSONDecodeError, KeyError):
+            _cards = []
+    return _cards
+
+
+def card_families(cands, text, top=5):
+    """把检索到的候选归入格式卡家族，返回与"输入语义 + 候选构成"最匹配的 top 张卡。
+
+    打分 = 输入命中 provider hints 数 ×3 + 候选命中 pattern 条数（上限5）。
+    输入 hints 权重更高：说明这条输入本身就在讲这类场景。"""
+    cards = load_cards()
+    scored = []
+    for c in cards:
+        hint = sum(1 for h in c.get("input_hints", []) if h and h in text)
+        members = sum(1 for m in cands
+                      if any(p in (m.get("barrage") or "") for p in c.get("pattern", [])))
+        score = hint * 3 + min(members, 5)
+        if score > 0:
+            scored.append((1 if hint else 0, hint, min(members, 5), c))
+    # 关键：有"输入正向证据（hint）"的卡严格排在没有证据的卡前面，
+    # 避免靠语料共现（members）混进来的万能卡抢占首位
+    scored.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
+    return [s[3] for s in scored[:top]]
+
+
+def format_families(cards):
+    """渲染【可用骨架】区块：只给骨架/用法/填法/红线，不给完整原句（防止填充物抢戏）。"""
+    if not cards:
+        return "（本次未命中现成骨架，直接按下面的短梗或情绪短句接）"
+    lines = ["（铁规：选中的骨架必须把 <槽位> 换成输入里的内容。若某张卡的骨架不需要替换任何内容"
+             "就能直接发出去，说明这张卡不适用这条输入，换一张——禁止用同一张万能卡套所有输入。）"]
+    for i, c in enumerate(cards, 1):
+        neg = "；".join(c.get("negative", [])[:2])
+        lines.append(f"{i}. 【{c['name']}】\n"
+                     f"   骨架：{c['skeleton']}\n"
+                     f"   何时用：{c['usage']}\n"
+                     f"   怎么填：{c['fill']}"
+                     + (f"\n   红线：{neg}" if neg else ""))
+    return "\n".join(lines)
+
+
+def short_fillers(cands, limit=8, max_len=22):
+    """对口短梗（≤max_len 字，属于"词"级梗，可原样搬运）。"""
+    seen, out = set(), []
+    for m in cands:
+        b = (m.get("barrage") or "").strip()
+        if not b or len(b) > max_len or b in seen:
+            continue
+        seen.add(b)
+        out.append(b)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def prompt_version():
+    """生成层版本开关：MEMESTYLE_PROMPT=v1 立刻切回旧版（软回滚，无需改文件）。"""
+    return os.environ.get("MEMESTYLE_PROMPT", "v2").strip().lower() or "v2"
+
+
 # ---------------------------------------------------------------- 三步主流程
 def classify_context(text):
     """第 1 步：语境判断。返回类别名；调用失败返回 None（上层记 ERROR）。"""
@@ -371,6 +442,63 @@ GEN_SYSTEM_PROMPT = """你是斗鱼6657（玩机器CS直播间）泡了十年的
 1. 梗必须与输入语义真实相关，宁可不玩也不硬玩。
 2. 只输出一条回复，中文，不要任何解释。"""
 
+GEN_SYSTEM_PROMPT_V2 = """你是斗鱼6657（玩机器CS直播间）泡了十年的老串子，现在回一条弹幕。你发的是弹幕，不是小作文。
+
+【核心认知：梗弹幕 = 骨架 + 填充物】
+6657 老哥玩梗从来不是背原句，而是"套格式填新料"：骨架（XX越多YY越少、【HLTV】…宣布…、我的青春是…、@某人 教学X）是大家共用的；填充物（里面的人、事、数）是当次现场填的。笑点=格式与内容的落差。
+你的活是：认出这条输入该套哪个骨架 → 把输入里的东西填进去。不是从库里挑一条最像的原句整段抄走。
+
+【第一优先级：接地（压倒一切）】
+你回的是"这条输入"的弹幕。写完自查三问，答不上就重写：①主体对吗（说的是谁）②场景对吗（在干什么）③方向对吗（夸/喷/看乐子）。
+一条梗再有名，跟输入对不上就是废稿。宁可回"考""绷不住了"这种纯情绪短句，也绝不回一条不接地气的神梗。
+
+【怎么产出（严格按序）】
+1. 【可用骨架】里挑一个与当前场景最匹配的 → 按"怎么填"把输入的人/事/物填进槽位 → 输出「骨架 + 新填充物」。
+   ★ 骨架卡里的"代表样句"是别人的填充物，禁止整段照搬（照搬=填充物抢戏），只借格式。
+   ★ 自检：选中的骨架若"不需要替换任何槽位就能原样发出去"，说明这张卡不适用这条输入——必须换一张。同一张万能卡套在所有输入上=废稿（历轮事故：把"🐖宝宝粗现"套在闲聊/请假/沉默等无关输入上）。
+2. 【对口短梗】里 ≤20 字的短句（"词"级梗，如 吓哭了 / 哦？ / @karrigan:也许🐶💩才刚刚黏住）可以直接原样搬运。
+3. 骨架和短梗都对不上 → 回纯情绪短句（"考""男的""绷不住了""急什么急"）；带节奏/刷屏/拿不准语义的输入 → 回无意义带节奏向刷屏（😮哦？×N、✋停✋止✋…）。
+4. 任何情况都不许：整段照搬 20 字以上的原句、自创文学比喻、编数字编因果、复读输入的原词。
+
+【弹幕铁律（违反=废稿）】
+1. 极短、纯情绪。第1档一词一句；第2档一两句以内；只有第3档可以复读轰炸和长文学。
+2. 禁止完整长句、解说腔、书面框架句式（"你问我…我只能说""建议…"一律不许）。
+3. 默认串子立场：嘲讽主播、看乐子、带节奏；夸操作用老哥式（"牛逼""没关就是开了"）。
+4. emoji 是情绪放大器，该用就用（😮😭🤣💀👎），别堆砌。
+5. 求助/钓鱼/催看类（急急急、问渠道），优先"耍主播"式接梗（例：机器你先别解说了，赶紧看下hltv，出大事了！）。输入是假新闻/诈骗类时，直接输出一条具体的同款假新闻本体，不要输出对它的描述。
+
+【错误示范（负样本，见到即避）】
+- 填充物抢戏：把"俯卧撑语录体""我的青春体"套在一条残局/战术输入上——格式对了但内容没接住，等于没回这条输入。
+- 主体/方向反：输入在夸"选手打出漂亮操作"，却回"玩机器操作像猪"——主体和方向都错。
+- 场景反：输入是"看比赛激动"，却回"游龙/猪圈乱拱"（那是主播自己打游戏耍宝）。
+- 主体错位：输入是"弹幕观众说工资没发"，却回"玩机器领不到工资"（那是主播视角）。
+- 只抄格式不留内容：整段搬运一条长原句，换谁来都能用——说明没接地。
+
+【浓度档位】（三档示例只标定浓度尺度，禁止照搬示例本身当输出，本次只用指定档位）
+第1档 点到为止——一词一句，轻碰就走：
+{ex1}
+第2档 正常浓度——一两句以内：
+{ex2}
+第3档 火力全开——复读轰炸/长文学攻击，可长：
+{ex3}
+
+【硬性要求】
+1. 梗必须与输入语义真实相关，宁可不玩也不硬玩。
+2. 只输出一条回复，中文，不要任何解释。"""
+
+# 配对 few-shot（输入 → 回复）：示范"骨架 + 填充物 = 接地"，是 V1 从未测过的最后一块零件。
+# 放在 system 之后的真实多轮里，让模型看到"怎么把输入填进骨架"。
+FEWSHOT_PAIRS = [
+    # 夸选手操作（方向闸：只接夸的；短梗直接搬运）
+    ("玩机器解说中选手打出漂亮操作", "童站弹幕：吓哭了"),
+    # 主播请假/日常（骨架=@某人教学体，填充物=输入里的"登山"）
+    ("玩机器请假说要去登山", "@玩机器 教学登山\n@玩机器 教学嘴硬\n回复:先教教怎么开播吧"),
+    # 接住吹捧本身（骨架=残局叙事体，填充物=输入的"登峰造极"）
+    ("这把残局登峰造极", "登峰造极？一打二、对面打包、你没钳子，这是对枪型残局吗😧…最后不还是路边了😭"),
+    # 生态外输入（骨架=多实体并列比喻体，填的是"签证"语义，不抓词）
+    ("帮我看下办签证要准备什么材料", "又一个材料没备齐的，此刻我就像没签证的京介，没带照片的niko，没填表的wdf😅"),
+]
+
 NOMEME_SYSTEM_PROMPT = (
     "你是斗鱼6657直播间的热心观众。用户发来一条严肃/正经的弹幕或求助，"
     "请认真正常地回复，不玩任何梗、不阴阳怪气。只输出一条回复，中文，不要解释。"
@@ -390,6 +518,8 @@ def generate_reply(text, intensity, candidates=None, related=None, assigned=None
             {"role": "system", "content": NOMEME_SYSTEM_PROMPT},
             {"role": "user", "content": text},
         ]
+    elif prompt_version() == "v2":
+        return _generate_v2(text, intensity, candidates, related, assigned)
     else:
         system = GEN_SYSTEM_PROMPT.format(
             ex1="\n".join("- " + e for e in INTENSITY_EXAMPLES[1]),
@@ -416,6 +546,52 @@ def generate_reply(text, intensity, candidates=None, related=None, assigned=None
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ]
+    return call_deepseek(messages, temperature=0.9)
+
+
+def _generate_v2(text, intensity, candidates, related, assigned=None):
+    """V2 生成：骨架卡 + 对口短梗 + 配对 few-shot + 负样本。
+
+    与 V1 的关键差别：不再把 33 条裸原句陈列给模型（那是"填充物抢戏"的根源），
+    改为给"可用骨架（只给格式/用法/填法/红线）"+"≤20字对口短梗"，并用配对 few-shot
+    示范如何把输入填进骨架（接地）。
+    """
+    merged = list(related or []) + [m for m in (candidates or [])
+                                    if id(m) not in {id(x) for x in (related or [])}]
+    cards = card_families(merged, text, top=5)
+    fillers = short_fillers(merged)
+
+    system = GEN_SYSTEM_PROMPT_V2.format(
+        ex1="\n".join("- " + e for e in INTENSITY_EXAMPLES[1]),
+        ex2="\n".join("- " + e for e in INTENSITY_EXAMPLES[2]),
+        ex3="\n".join("- " + e for e in INTENSITY_EXAMPLES[3]),
+    ) + f"\n\n【本次档位】第{intensity}档（{INTENSITY_NAMES[intensity]}）"
+
+    messages = [{"role": "system", "content": system}]
+    for u, a in FEWSHOT_PAIRS:
+        messages.append({"role": "user", "content": f"输入弹幕：{u}"})
+        messages.append({"role": "assistant", "content": a})
+
+    user = (f"输入弹幕：{text}\n\n"
+            f"【可用骨架】（挑一张最贴当前场景的，按“怎么填”把输入内容填进槽位）：\n"
+            f"{format_families(cards)}")
+    if fillers:
+        user += ("\n\n【对口短梗】（≤20字，可原样搬运，也可不用）：\n"
+                 + "\n".join("- " + b for b in fillers))
+    if assigned == "fallback":
+        user += ("\n\n【本条指定路线】本条不走骨架：输出一条无意义带节奏向刷屏"
+                 "（如 😮哦？×N、✋停✋止✋…）。")
+    elif isinstance(assigned, dict) and "skeleton" in assigned:
+        user += (f"\n\n【本条指定骨架】必须用这张骨架、把输入内容填进槽位"
+                 f"（禁止照搬别处的填充物）：\n- 【{assigned['name']}】{assigned['skeleton']}")
+    elif isinstance(assigned, dict):
+        b = (assigned.get("barrage") or "").strip()
+        if len(b) > CAND_TRUNC:
+            b = b[:CAND_TRUNC] + "…（截断）"
+        user += (f"\n\n【本条指定主梗】以它为骨架来填输入内容；若它实在接不住输入，"
+                 f"就换【可用骨架】里更贴的一张（不要整段照搬它）：\n- {b}")
+    messages.append({"role": "user", "content": user})
+
     return call_deepseek(messages, temperature=0.9)
 
 
@@ -498,6 +674,11 @@ def runmeme_candidates(text, intensity=2, n=3):
                 merged.append(m)
                 seen.add(id(m))
         assigns = [merged[i] if i < len(merged) else "fallback" for i in range(n)]
+        if prompt_version() == "v2":
+            # V2：每条指定一张不同的骨架卡（填充物由生成模型按输入现填）；
+            # 卡片不够时用相关梗补位，再不够走兜底向
+            picks = list(card_families(merged, text, top=n)) + merged
+            assigns = [picks[i] if i < len(picks) else "fallback" for i in range(n)]
 
     # 第 3 步：并行生成 n 条
     with ThreadPoolExecutor(max_workers=n) as ex:
@@ -510,7 +691,10 @@ def runmeme_candidates(text, intensity=2, n=3):
     for a, r in zip(assigns, replies):
         if r and r.strip():
             kept.append(r.strip())
-            kept_assign.append(a.get("barrage", "")[:50] if isinstance(a, dict) else a)
+            if isinstance(a, dict):
+                kept_assign.append((a.get("name") or (a.get("barrage") or ""))[:50])
+            else:
+                kept_assign.append(a)
     if not kept:
         result["error"] = "生成调用失败（重试3次后仍失败）"
         return result
