@@ -46,10 +46,18 @@
 
 **6. app 端改造 + 入库（2026-09-13）**
 - `app.py`：① 把 `st.secrets` 里的 `MEMESTYLE_PROMPT` 透传到环境变量 → **云端可不改代码切 V1/V2 做 A/B**；② 页面 caption 显示当前生成层版本（V1/V2）。已冒烟 HTTP 200。
-- 本地提交两个 commit：`c69a140`（V2 生成层 + format_cards.json + 文档）、`06dd221`（app 版本开关）
-- **私有仓库 `yinxu-xiong/memestyle-6657` 已推送**（`e8dcdb4..06dd221 main -> main`）
+- 本地提交三个 commit：`c69a140`（V2 生成层 + format_cards.json + 文档）、`06dd221`（app 版本开关）、`42a879b`（state 记录）
+- **两个仓库均已推送（2026-09-13 10:45）**：
+  - 私有 `yinxu-xiong/memestyle-6657`：`06dd221` → `42a879b`
+  - **公开 `yinxu-xiong/memestyle-6657-app`（app 部署源）：`024b4a1` → `6ea8f86`**，11 个文件已确认（新增 `format_cards.json`）→ Streamlit Cloud 会自动重部署
 - 推送要点（复现用）：直连 github.com 不通需走代理 `127.0.0.1:7897`（VPN 开启时可用）；系统默认助手 `helper-selector` 需交互终端会失败，改用 `-c credential.helper=wincred`（读 Windows 凭据管理器，非交互可用）
 - 未提交（沿用红线）：`api_notes.md` / `fetch_memes.py` / `golden_set.*` / eval 存档 / `feedback.jsonl` / `rollback.py` / `backups/` / `_v2work/`
+
+**7. 云端 ImportError 事件 + 容错加固（2026-09-13）**
+- 现象：app 端报 `ImportError: cannot import name 'prompt_version'`（`/mount/src/memestyle-6657-app/app.py` 第 19 行）
+- 排查：核对公开仓库 raw 文件，**HEAD `6ea8f86` 内 `memestyle.py` 第 359 行有 `prompt_version`、`app.py` 第 19 行即新导入** → 仓库内容正确，属**云端那次构建未刷新干净**（拉到了新 app.py、模块仍为旧版）
+- 处理：① 引导用户在 app 页 Manage app → **Reboot**（强制干净重取）；② **加固 `app.py`**：`prompt_version` / `load_cards` 改为 try-import，旧版模块下不再整站崩，而是降级为 V1 并把版本如实显示；caption 增加"骨架卡 N 张"用于自查（缺 `format_cards.json` 会显示 0 张）
+- 本地冒烟：HTTP 200，无异常
 
 ## 已完成
 1. **接口调查**：未启动浏览器，改为直接分析站点前端 JS 包（`sb6657.cn/assets/js/index.DjejzvcD.js` 等），

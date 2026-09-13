@@ -16,7 +16,21 @@ from pathlib import Path
 
 import streamlit as st
 
-from memestyle import runmeme_candidates, prompt_version
+from memestyle import runmeme_candidates
+
+# 容错：若云端因部署未刷新干净而拿到旧版 memestyle.py，不至于整站 ImportError 崩掉，
+# 而是降级为 V1 行为并把版本如实显示在页面上（部署刷新后自动恢复 V2）。
+try:
+    from memestyle import prompt_version
+except ImportError:  # 旧版 memestyle 没有该函数
+    def prompt_version():
+        return "v1"
+
+try:  # 骨架卡数量（V2 生效时用于自查；缺 format_cards.json 会显示 0 张）
+    from memestyle import load_cards
+    CARD_N = len(load_cards())
+except Exception:
+    CARD_N = 0
 
 BASE_DIR = Path(__file__).resolve().parent
 FEEDBACK_FILE = BASE_DIR / "feedback.jsonl"
@@ -67,7 +81,8 @@ def bump_quota():
 
 st.set_page_config(page_title="6657 串子生成器", page_icon="🐽", layout="centered")
 st.title("🐽 6657 串子生成器")
-st.caption(f"梗库 23701 条 · 一次出 3 条候选，点选最好的一条 · 生成层 {prompt_version().upper()}")
+st.caption(f"梗库 23701 条 · 一次出 3 条候选，点选最好的一条 · 生成层 {prompt_version().upper()}"
+           + (f"（骨架卡 {CARD_N} 张）" if prompt_version() == "v2" else ""))
 
 if not check_quota():
     st.error("今日额度用完，明天再来 🐷")
