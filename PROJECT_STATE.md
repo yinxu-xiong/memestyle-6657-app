@@ -58,6 +58,8 @@
 - 排查：核对公开仓库 raw 文件，**HEAD `6ea8f86` 内 `memestyle.py` 第 359 行有 `prompt_version`、`app.py` 第 19 行即新导入** → 仓库内容正确，属**云端那次构建未刷新干净**（拉到了新 app.py、模块仍为旧版）
 - 处理：① 引导用户在 app 页 Manage app → **Reboot**（强制干净重取）；② **加固 `app.py`**：`prompt_version` / `load_cards` 改为 try-import，旧版模块下不再整站崩，而是降级为 V1 并把版本如实显示；caption 增加"骨架卡 N 张"用于自查（缺 `format_cards.json` 会显示 0 张）
 - 本地冒烟：HTTP 200，无异常
+- 提交并推送：`2121774`（私有）、`9f71186`（公开 app 部署源）→ Streamlit Cloud 需 **Reboot** 才会拉到
+- 复现备注：代理 `127.0.0.1:7897` 不稳定，推送需重试；加 `-c http.version=HTTP/1.1` 成功率明显更高
 
 ## 已完成
 1. **接口调查**：未启动浏览器，改为直接分析站点前端 JS 包（`sb6657.cn/assets/js/index.DjejzvcD.js` 等），
